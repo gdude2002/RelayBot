@@ -1,0 +1,6 @@
+.idea/
+data/
+
+*.log
+*.yml
+*.json
