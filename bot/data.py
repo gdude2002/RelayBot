@@ -55,7 +55,7 @@ class DataManager:
                         log.exception("Failed to load server: {}".format(fn))
 
     def save(self):
-        with open("data/channels.yml", "r") as fh:
+        with open("data/channels.yml", "w") as fh:
             yaml.safe_dump(self.channels, fh)
 
         for server_id, data in self.data.items():
@@ -130,9 +130,12 @@ class DataManager:
 
         if target not in self.channels[origin]:
             self.channels[origin].append(target)
-            return True
 
-        return False
+        if target not in self.channels:
+            self.channels[target] = []
+
+        if origin not in self.channels[target]:
+            self.channels[target].append(origin)
 
     def has_target(self, origin, target):
         if isinstance(origin, Channel):

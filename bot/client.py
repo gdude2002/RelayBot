@@ -124,7 +124,12 @@ class Client(discord.client.Client):
             hooks = 0
 
             if channel_id not in self.webhooks:
-                h = self.ensure_relay_hook(channel_id)
+                try:
+                    h = await self.ensure_relay_hook(channel_id)
+                except Exception:
+                    log.exception("Unable to get webhook for channel: `{}`".format(channel_id))
+                    self.data_manager.remove_targets(channel_id)
+                    continue
 
                 if h is None:  # Doesn't exist
                     log.info("Channel {} no longer exists.".format(channel_id))
@@ -143,7 +148,7 @@ class Client(discord.client.Client):
                     self.webhooks[channel_id] = h
                     hooks += 1
 
-            log.info("Got {} webhooks for channel `{}`".format(hooks, channel_id))
+            log.debug("Got {} webhooks for channel `{}`".format(hooks, channel_id))
 
         log.info("Ready!")
 
@@ -158,6 +163,9 @@ class Client(discord.client.Client):
             return  # DM
 
         if message.author.id == self.user.id:
+            return
+
+        if str(message.author.discriminator) == "0000":
             return
 
         logger = logging.getLogger(message.server.name)
@@ -214,7 +222,31 @@ class Client(discord.client.Client):
         return False
 
     async def do_relay(self, message):
-        pass
+        targets = self.data_manager.get_targets(message.channel)
+        avatar = message.author.avatar_url
+
+        for channel_id in targets:
+            hook = self.webhooks.get(channel_id, None)
+
+            if hook is None:
+                await self.send_message(
+                    message.channel, "Webhook for channel `{}` is missing - unlinking channel".format(channel_id)
+                )
+                self.data_manager.remove_targets(channel_id)
+            else:
+                try:
+                    await self.execute_webhook(
+                        hook["id"], hook["token"],
+                        content=message.content, username=message.author.name,
+                        avatar_url=avatar if avatar else None
+                    )
+                except Exception as e:
+                    await self.send_message(
+                        message.channel,
+                        "Error executing webhook for channel `{}` - unlinking channel\n\n```{}```".format(channel_id, e)
+                    )
+                    self.data_manager.remove_targets(channel_id)
+                    raise
 
     # region Commands
 
@@ -274,7 +306,88 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            pass
+            return await self.send_message("Usage: `link <channel ID> [channel ID]`")
+
+        if len(data) < 2:
+            left = message.channel
+            right = data[0]
+        else:
+            left, right = data[0], data[1]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    "Invalid channel ID: `{}`".format(left)
+                )
+
+        try:
+            int(right)
+            right = self.get_channel(right)
+        except Exception:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right)
+            )
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(left.id)
+            )
+        elif right_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right.id)
+            )
+
+        if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
+            try:
+                h = await self.ensure_relay_hook(left)
+
+                if not h:
+                    await self.send_message(
+                        message.channel,
+                        "Unable to set up webhook for channel `{}`: I don't have the Manage Webhooks "
+                        "permission.".format(left.id)
+                    )
+                self.webhooks[left.id] = h
+            except Exception as e:
+                await self.send_message(
+                    message.channel,
+                    "Unable to set up webhook for channel `{}`: `{}`".format(left.id, e)
+                )
+
+                raise
+
+            try:
+                h = await self.ensure_relay_hook(right)
+
+                if not h:
+                    return await self.send_message(
+                        message.channel,
+                        "Unable to set up webhook for channel `{}`: I don't have the Manage Webhooks "
+                        "permission.".format(right.id)
+                    )
+
+                self.webhooks[right.id] = h
+            except Exception as e:
+                return await self.send_message(
+                    message.channel,
+                    "Unable to set up webhook for channel `{}`: `{}`".format(right.id, e)
+                )
+            self.data_manager.add_target(left, right)
+
+            return await self.send_message(
+                message.channel,
+                "Channels linked successfully."
+            )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to both channels"
+            )
 
     async def command_links(self, data, data_string, message):
         if not self.has_permission(message.author):
@@ -308,8 +421,10 @@ class Client(discord.client.Client):
         if not channel:
             return None
 
-        if not channel.permissions_for(self).manage_webhooks:
-            if not Channel.server.get_member(self.user.id).server_permissions.manage_webhooks:
+        ourselves = channel.server.get_member(self.user.id)
+
+        if not channel.permissions_for(ourselves).manage_webhooks:
+            if not ourselves.server_permissions.manage_webhooks:
                 return False
 
         hooks = await self.get_channel_webhooks(channel)
@@ -341,7 +456,8 @@ class Client(discord.client.Client):
         if not payload:
             raise KeyError("Must include either `name`, `avatar`, or both")
 
-        return await self.http.request(r, json=payload)
+        data = await self.http.request(r, json=payload)
+        log.debug("Create Webhook [{}, {}, {}] -> {}".format(channel, name, avatar, data))
 
     async def get_channel_webhooks(self, channel) -> List[Dict]:
         if isinstance(channel, Channel):
@@ -400,7 +516,7 @@ class Client(discord.client.Client):
 
     async def execute_webhook(self, webhook_id, webhook_token, *, wait=False, content=None, username=None,
                               avatar_url=None, tts=False, file=None, embeds=None) -> None:
-        r = Route("POST", "/webhooks/{webhook.id}/{webhook.token}".format(
+        r = Route("POST", "/webhooks/{webhook_id}/{webhook_token}".format(
             webhook_id=webhook_id, webhook_token=webhook_token
         ))
 
@@ -413,7 +529,7 @@ class Client(discord.client.Client):
             "embeds": embeds
         }
 
-        for key, value in payload.copy():
+        for key, value in payload.copy().items():
             if value is None:
                 del payload[key]
 
