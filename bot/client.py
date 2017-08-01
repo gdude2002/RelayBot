@@ -50,7 +50,7 @@ You may relay between servers, but note that you must be present and have **Mana
 
 HELP_MESSAGE = """
 RelayBot is written and maintained by `gdude2002#5318`. If you've got a problem, please report it to the issue \
-tracker at <https://github.com/gdude2002/RelayBot>.
+tracker at <https://github.com/gdude2002/RelayBot>, or you can join the RelayBot server here: https://discord.gg/w2K2wZT
 
 To read up on how to use me, you should really take a look at our documentation on the wiki. You can find that here: \
 <https://github.com/gdude2002/RelayBot/wiki>

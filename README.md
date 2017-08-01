@@ -6,6 +6,8 @@ unobtrusive a way as possible.
 
 For user documentation, please see [the wiki](https://github.com/gdude2002/RelayBot/wiki).
 
+You can also come and chat to us [on Discord](https://discord.gg/w2K2wZT).
+
 ---
 
 * Install Python 3.6 or later
