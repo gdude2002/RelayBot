@@ -398,6 +398,7 @@ class Client(discord.client.Client):
                     "Unable to set up webhook for {}: `{}`".format(self.get_channel_info(right), e)
                 )
             self.data_manager.add_target(left, right)
+            self.data_manager.save()
 
             await self.send_message(
                 message.channel,
@@ -500,6 +501,8 @@ class Client(discord.client.Client):
         if left_member.server_permissions.manage_server or right_member.server_permissions.manage_server:
             if self.data_manager.has_target(left, right):
                 self.data_manager.remove_target(left, right)
+                self.data_manager.save()
+
                 await self.send_message(
                     message.channel, "Channels unlinked successfully."
                 )
@@ -558,6 +561,7 @@ class Client(discord.client.Client):
             return await self.send_message("This channel is not linked to any others.")
 
         self.data_manager.remove_targets(channel)
+        self.data_manager.save()
 
         await self.send_message("Notifying linked channels of removal...")
         await self.send_typing(message.channel)
