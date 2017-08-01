@@ -12,7 +12,7 @@ __author__ = "Gareth Coles"
 DATA_REGEX = re.compile(r"[\d]+[\\/]?")
 
 DEFAULT_CONFIG = {
-    "control_chars": "!"
+    "control_chars": ":"
 }
 
 log = logging.getLogger("Data")

@@ -37,7 +37,7 @@ WELCOME_MESSAGE = [
     """
 Hello! I was invited to this server to relay messages between channels.
 
-Please use `!link <from channel ID> <to channel ID>` to specify which channels to relay, or `!help` 
+Please use `:link <from channel ID> <to channel ID>` to specify which channels to relay, or `:help` \
 for more information on how I work. 
 
 Note: Management commands require the **Manage Server** permission. Issues can be reported to \
@@ -128,7 +128,7 @@ class Client(discord.client.Client):
 
                 if h is None:  # Doesn't exist
                     log.info("Channel {} no longer exists.".format(channel_id))
-                    del self.data_manager.channels[channel_id]
+                    self.data_manager.remove_targets(channel_id)
                     continue
                 elif h is False:  # No permission
                     await self.send_message(
@@ -137,7 +137,7 @@ class Client(discord.client.Client):
                         "As I require this permission to function, I have unlinked this channel. Please link it again "
                         "when this is fixed."
                     )
-                    del self.data_manager.channels[channel_id]
+                    self.data_manager.remove_targets(channel_id)
                     continue
                 else:
                     self.webhooks[channel_id] = h
