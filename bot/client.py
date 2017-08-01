@@ -626,6 +626,7 @@ class Client(discord.client.Client):
 
         data = await self.http.request(r, json=payload)
         log.debug("Create Webhook [{}, {}, {}] -> {}".format(channel, name, avatar, data))
+        return data
 
     async def get_channel_webhooks(self, channel) -> List[Dict]:
         if isinstance(channel, Channel):
