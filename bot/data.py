@@ -163,14 +163,17 @@ class DataManager:
         if isinstance(target, Channel):
             target = target.id
 
-        if origin not in self.channels:
-            return False
-
-        if target in self.channels[origin]:
+        if origin in self.channels and target in self.channels[origin]:
             self.channels[origin].remove(target)
-            return True
 
-        return False
+            if not self.channels[origin]:
+                del self.channels[origin]
+
+        if target in self.channels and origin in self.channels[target]:
+            self.channels[target].remove(origin)
+
+            if not self.channels[target]:
+                del self.channels[target]
 
     def remove_targets(self, origin):
         if isinstance(origin, Channel):
@@ -182,4 +185,7 @@ class DataManager:
         for channel, targets in list(self.channels.items()):
             if origin in targets:
                 self.channels[channel].remove(origin)
+
+                if not self.channels[channel]:
+                    del self.channels[channel]
 

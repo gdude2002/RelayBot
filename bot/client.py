@@ -216,7 +216,7 @@ class Client(discord.client.Client):
     def has_permission(self, user):
         if user.server_permissions.manage_server:
             return True
-        elif int(user.id) == int(self.config["owner_id"]):
+        if int(user.id) == int(self.config["owner_id"]):
             return True
 
         return False
@@ -306,7 +306,9 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            return await self.send_message("Usage: `link <channel ID> [channel ID]`")
+            return await self.send_message(message.channel, "Usage: `link <channel ID> [channel ID]`")
+
+        await self.send_typing(message.channel)
 
         if len(data) < 2:
             left = message.channel
@@ -319,7 +321,7 @@ class Client(discord.client.Client):
                 left = self.get_channel(left)
             except Exception:
                 return await self.send_message(
-                    "Invalid channel ID: `{}`".format(left)
+                    message.channel, "Invalid channel ID: `{}`".format(left)
                 )
 
         try:
@@ -327,7 +329,7 @@ class Client(discord.client.Client):
             right = self.get_channel(right)
         except Exception:
             return await self.send_message(
-                "Invalid channel ID: `{}`".format(right)
+                message.channel, "Invalid channel ID: `{}`".format(right)
             )
 
         left_member = left.server.get_member(message.author.id)
@@ -335,11 +337,11 @@ class Client(discord.client.Client):
 
         if left_member is None:
             return await self.send_message(
-                "Invalid channel ID: `{}`".format(left.id)
+                message.channel, "Invalid channel ID: `{}`".format(left.id)
             )
         elif right_member is None:
             return await self.send_message(
-                "Invalid channel ID: `{}`".format(right.id)
+                message.channel, "Invalid channel ID: `{}`".format(right.id)
             )
 
         if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
@@ -401,7 +403,59 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            pass
+            return await self.send_message(message.channel, "Usage: `unlink <channel ID> [channel ID]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            left = message.channel
+            right = data[0]
+        else:
+            left, right = data[0], data[1]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    "Invalid channel ID: `{}`".format(left)
+                )
+
+        try:
+            int(right)
+            right = self.get_channel(right)
+        except Exception:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right)
+            )
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(left.id)
+            )
+        elif right_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right.id)
+            )
+
+        if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
+            if self.data_manager.has_target(left, right):
+                self.data_manager.remove_target(left, right)
+                return await self.send_message(
+                    message.channel, "Channels unlinked successfully."
+                )
+            else:
+                return await self.send_message(
+                    message.channel, "These channels are not linked."
+                )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to both channels"
+            )
 
     async def command_unlink_all(self, data, data_string, message):
         if not self.has_permission(message.author):
