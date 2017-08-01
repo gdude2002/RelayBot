@@ -17,6 +17,7 @@ from discord.http import Route
 from ruamel import yaml
 
 from bot.data import DataManager
+from bot.utils import line_splitter
 
 log = logging.getLogger("bot")
 
@@ -37,7 +38,7 @@ WELCOME_MESSAGE = [
     """
 Hello! I was invited to this server to relay messages between channels.
 
-Please use `;link <from channel ID> <to channel ID>` to specify which channels to relay, or `;help` \
+Please use `;link <channel ID> [channel ID]` to specify which channels to relay, or `;help` \
 for more information on how I work. 
 
 Note: Management commands require the **Manage Server** permission. Issues can be reported to \
@@ -57,6 +58,9 @@ To read up on how to use me, you should really take a look at our documentation 
 
 
 class Client(discord.client.Client):
+    normal_mention = None
+    nick_mention = None
+
     def __init__(self, *, loop=None, **options):
         super().__init__(loop=loop, **options)
 
@@ -119,10 +123,13 @@ class Client(discord.client.Client):
         log.info("Setting up...")
         self.data_manager.load()
 
+        self.normal_mention = "<@{}>".format(self.user.id)
+        self.nick_mention = "<@!{}>".format(self.user.id)
+
         for server in self.servers:
             self.data_manager.add_server(server.id)
 
-        log.info("Getting webhooks...")
+        log.debug("Getting webhooks...")
         for channel_id, targets in list(self.data_manager.channels.items()):
             hooks = 0
 
@@ -135,7 +142,7 @@ class Client(discord.client.Client):
                     continue
 
                 if h is None:  # Doesn't exist
-                    log.info("Channel {} no longer exists.".format(channel_id))
+                    log.debug("Channel {} no longer exists.".format(channel_id))
                     self.data_manager.remove_targets(channel_id)
                     continue
                 elif h is False:  # No permission
@@ -188,8 +195,10 @@ class Client(discord.client.Client):
 
         if message.content.startswith(chars):  # It's a command
             text = message.content[len(chars):].strip()
-        elif message.content.startswith(self.user.mention):  # Mention for commands
-            text = message.content[len(self.user.mention):].strip()
+        elif message.content.startswith(self.normal_mention):
+            text = message.content[len(self.normal_mention):].strip()
+        elif message.content.startswith(self.nick_mention):
+            text = message.content[len(self.nick_mention):].strip()
 
         if text:
             if " " in text:
@@ -302,7 +311,7 @@ class Client(discord.client.Client):
             )
 
     async def command_help(self, data, data_string, message):
-        await self.send_message(message.channel, "{}\n\n{}".format(message.author.mention, HELP_MESSAGE))
+        await self.send_message(message.channel, "{} {}".format(message.author.mention, HELP_MESSAGE))
 
     async def command_link(self, data, data_string, message):
         if not self.has_permission(message.author):
@@ -418,8 +427,32 @@ class Client(discord.client.Client):
         if not self.has_permission(message.author):
             return log.debug("Permission denied")  # No perms
 
-        if len(data) < 1:
-            pass
+        targets = self.data_manager.get_targets(message.channel)
+
+        if not targets:
+            return await self.send_message(message.channel, "This channel is not linked to any others.")
+
+        got_lines = []
+        unknown_lines = []
+
+        for target in targets:
+            channel = self.get_channel(target)
+
+            if not channel:
+                unknown_lines.append("• {}".format(target))
+            else:
+                got_lines.append("• {}".format(self.get_channel_info(channel)))
+
+        if got_lines:
+            lines = ["__**Linked channels**__"] + got_lines
+
+            for line in line_splitter(lines, 2000):
+                await self.send_message(message.channel, line)
+        if unknown_lines:
+            lines = ["__**Missing linked channels**__"] + unknown_lines
+
+            for line in line_splitter(lines, 2000):
+                await self.send_message(message.channel, line)
 
     async def command_unlink(self, data, data_string, message):
         if not self.has_permission(message.author):
@@ -464,7 +497,7 @@ class Client(discord.client.Client):
                 "Invalid channel ID: `{}`".format(right.id)
             )
 
-        if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
+        if left_member.server_permissions.manage_server or right_member.server_permissions.manage_server:
             if self.data_manager.has_target(left, right):
                 self.data_manager.remove_target(left, right)
                 await self.send_message(
@@ -493,7 +526,8 @@ class Client(discord.client.Client):
         else:
             return await self.send_message(
                 message.channel,
-                "Permission denied - you must have `Manage Server` on the server belonging to both channels"
+                "Permission denied - you must have `Manage Server` on the server belonging to at least one of those "
+                "channels."
             )
 
     async def command_unlink_all(self, data, data_string, message):
@@ -501,7 +535,48 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            pass
+            return await self.send_message("Usage: `unlink-all <channel ID>`")
+
+        await self.send_typing(message.channel)
+
+        channel = data[0]
+
+        try:
+            int(data[0])
+            channel = self.get_channel(data[0])
+        except Exception:
+            return await self.send_message("Invalid channel ID: {}".format(channel))
+
+        if not channel.server.get_member(message.author.id).server_permissions.manage_server:
+            return await self.send_message(
+                "Permission denied - you must have `Manage Server` on the server belonging to that channel."
+            )
+
+        targets = self.data_manager.get_targets(channel).copy()
+
+        if not targets:
+            return await self.send_message("This channel is not linked to any others.")
+
+        self.data_manager.remove_targets(channel)
+
+        await self.send_message("Notifying linked channels of removal...")
+        await self.send_typing(message.channel)
+
+        for target in targets:
+            other = self.get_channel(target)
+
+            if not other:
+                continue
+
+            await self.send_message(
+                other,
+                "This channel has been unlinked from {} by {} (`{}#{}`).".format(
+                    self.get_channel_info(channel), message.author.mention,
+                    message.author.name, message.author.discriminator
+                )
+            )
+
+        await self.send_message("Channels unlinked successfully.")
 
     # endregion
 
