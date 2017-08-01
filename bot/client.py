@@ -37,7 +37,7 @@ WELCOME_MESSAGE = [
     """
 Hello! I was invited to this server to relay messages between channels.
 
-Please use `:link <from channel ID> <to channel ID>` to specify which channels to relay, or `:help` \
+Please use `;link <from channel ID> <to channel ID>` to specify which channels to relay, or `;help` \
 for more information on how I work. 
 
 Note: Management commands require the **Manage Server** permission. Issues can be reported to \
@@ -70,6 +70,9 @@ class Client(discord.client.Client):
 
     def get_token(self):
         return self.config["token"]
+
+    def get_channel_info(self, channel):
+        return "`#{}` on `{}`".format(channel.name, channel.server.name)
 
     def log_to_channel(self, record: logging.LogRecord):
         if not self.config.get("log_channel"):
@@ -139,8 +142,8 @@ class Client(discord.client.Client):
                     await self.send_message(
                         self.get_channel(channel_id),
                         "**Error**: I do not have permission to manage webhooks on this channel.\n\n"
-                        "As I require this permission to function, I have unlinked this channel. Please link it again "
-                        "when this is fixed."
+                        "As I require this permission to function, I have entirely unlinked this channel. Please link "
+                        "it again when this is fixed."
                     )
                     self.data_manager.remove_targets(channel_id)
                     continue
@@ -344,6 +347,12 @@ class Client(discord.client.Client):
                 message.channel, "Invalid channel ID: `{}`".format(right.id)
             )
 
+        if left.id == right.id:
+            return await self.send_message(message.channel, "You may not link a channel to itself!")
+
+        if self.data_manager.has_target(left, right):
+            return await self.send_message(message.channel, "These channels are already linked!")
+
         if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
             try:
                 h = await self.ensure_relay_hook(left)
@@ -351,14 +360,14 @@ class Client(discord.client.Client):
                 if not h:
                     await self.send_message(
                         message.channel,
-                        "Unable to set up webhook for channel `{}`: I don't have the Manage Webhooks "
-                        "permission.".format(left.id)
+                        "Unable to set up webhook for {}: I don't have the Manage Webhooks "
+                        "permission.".format(self.get_channel_info(left))
                     )
                 self.webhooks[left.id] = h
             except Exception as e:
                 await self.send_message(
                     message.channel,
-                    "Unable to set up webhook for channel `{}`: `{}`".format(left.id, e)
+                    "Unable to set up webhook for channel {}: `{}`".format(self.get_channel_info(left), e)
                 )
 
                 raise
@@ -369,22 +378,36 @@ class Client(discord.client.Client):
                 if not h:
                     return await self.send_message(
                         message.channel,
-                        "Unable to set up webhook for channel `{}`: I don't have the Manage Webhooks "
-                        "permission.".format(right.id)
+                        "Unable to set up webhook for {}: I don't have the Manage Webhooks "
+                        "permission.".format(self.get_channel_info(right))
                     )
 
                 self.webhooks[right.id] = h
             except Exception as e:
                 return await self.send_message(
                     message.channel,
-                    "Unable to set up webhook for channel `{}`: `{}`".format(right.id, e)
+                    "Unable to set up webhook for {}: `{}`".format(self.get_channel_info(right), e)
                 )
             self.data_manager.add_target(left, right)
 
-            return await self.send_message(
+            await self.send_message(
                 message.channel,
                 "Channels linked successfully."
             )
+
+            if left.id != message.channel.id:
+                await self.send_message(
+                    left, "This channel has been linked to {} by {}.".format(
+                        self.get_channel_info(right), message.author.mention
+                    )
+                )
+
+            if right.id != message.channel.id:
+                await self.send_message(
+                    right, "This channel has been linked to {} by {}.".format(
+                        self.get_channel_info(left), message.author.mention
+                    )
+                )
         else:
             return await self.send_message(
                 message.channel,
@@ -444,9 +467,25 @@ class Client(discord.client.Client):
         if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
             if self.data_manager.has_target(left, right):
                 self.data_manager.remove_target(left, right)
-                return await self.send_message(
+                await self.send_message(
                     message.channel, "Channels unlinked successfully."
                 )
+
+                if left.id != message.channel.id:
+                    await self.send_message(
+                        left,
+                        "This channel has been unlinked from {} by {}.".format(
+                            self.get_channel_info(right), message.author.mention
+                        )
+                    )
+
+                if right.id != message.channel.id:
+                    await self.send_message(
+                        right,
+                        "This channel has been unlinked from {} by {}.".format(
+                            self.get_channel_info(left), message.author.mention
+                        )
+                    )
             else:
                 return await self.send_message(
                     message.channel, "These channels are not linked."
