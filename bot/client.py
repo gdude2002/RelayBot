@@ -259,11 +259,12 @@ class Client(discord.client.Client):
                         for attachment in message.attachments:
                             lines.append("**{}**: {}".format(attachment["filename"], attachment["url"]))
 
-                        await self.execute_webhook(
-                            hook["id"], hook["token"], wait=True,
-                            content=line_splitter(lines, 2000), username=message.author.name,
-                            avatar_url=avatar if avatar else None
-                        )
+                        for split_line in line_splitter(lines, 2000):
+                            await self.execute_webhook(
+                                hook["id"], hook["token"], wait=True,
+                                content=split_line, username=message.author.name,
+                                avatar_url=avatar if avatar else None
+                            )
                 except Exception as e:
                     await self.send_message(
                         message.channel,
