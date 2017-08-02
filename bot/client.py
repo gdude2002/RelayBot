@@ -267,7 +267,8 @@ class Client(discord.client.Client):
                             await self.execute_webhook(
                                 hook["id"], hook["token"], wait=True,
                                 content=split_line, username=message.author.name,
-                                avatar_url=avatar if avatar else None
+                                avatar_url=avatar if avatar else None,
+                                embeds=[embed.to_dict() for embed in message.embeds] if message.embeds else None
                             )
                 except Exception as e:
                     await self.send_message(
