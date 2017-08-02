@@ -248,10 +248,22 @@ class Client(discord.client.Client):
             else:
                 try:
                     await self.execute_webhook(
-                        hook["id"], hook["token"],
+                        hook["id"], hook["token"], wait=True,
                         content=message.content, username=message.author.name,
                         avatar_url=avatar if avatar else None
                     )
+
+                    if message.attachments:
+                        lines = ["__**Attachments**__"]
+
+                        for attachment in message.attachments:
+                            lines.append("**{}**: {}".format(attachment["filename"], attachment["url"]))
+
+                        await self.execute_webhook(
+                            hook["id"], hook["token"], wait=True,
+                            content=line_splitter(lines, 2000), username=message.author.name,
+                            avatar_url=avatar if avatar else None
+                        )
                 except Exception as e:
                     await self.send_message(
                         message.channel,
