@@ -139,11 +139,13 @@ class Client(discord.client.Client):
                 except Exception:
                     log.exception("Unable to get webhook for channel: `{}`".format(channel_id))
                     self.data_manager.remove_targets(channel_id)
+                    self.data_manager.save()
                     continue
 
                 if h is None:  # Doesn't exist
                     log.debug("Channel {} no longer exists.".format(channel_id))
                     self.data_manager.remove_targets(channel_id)
+                    self.data_manager.save()
                     continue
                 elif h is False:  # No permission
                     await self.send_message(
@@ -153,6 +155,7 @@ class Client(discord.client.Client):
                         "it again when this is fixed."
                     )
                     self.data_manager.remove_targets(channel_id)
+                    self.data_manager.save()
                     continue
                 else:
                     self.webhooks[channel_id] = h
@@ -245,6 +248,7 @@ class Client(discord.client.Client):
                     message.channel, "Webhook for channel `{}` is missing - unlinking channel".format(channel_id)
                 )
                 self.data_manager.remove_targets(channel_id)
+                self.data_manager.save()
             else:
                 try:
                     await self.execute_webhook(
@@ -254,7 +258,7 @@ class Client(discord.client.Client):
                     )
 
                     if message.attachments:
-                        lines = ["__**Attachments**__"]
+                        lines = ["__**Attachments**__\n"]
 
                         for attachment in message.attachments:
                             lines.append("**{}**: {}".format(attachment["filename"], attachment["url"]))
@@ -271,6 +275,7 @@ class Client(discord.client.Client):
                         "Error executing webhook for channel `{}` - unlinking channel\n\n```{}```".format(channel_id, e)
                     )
                     self.data_manager.remove_targets(channel_id)
+                    self.data_manager.save()
                     raise
 
     # region Commands
