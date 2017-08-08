@@ -251,12 +251,20 @@ class Client(discord.client.Client):
                 self.data_manager.save()
             else:
                 try:
-                    await self.execute_webhook(
-                        hook["id"], hook["token"], wait=True,
-                        content=message.content, username=message.author.name,
-                        avatar_url=avatar if avatar else None,
-                        embeds=message.embeds
-                    )
+                    if message.content:
+                        await self.execute_webhook(
+                            hook["id"], hook["token"], wait=True,
+                            content=message.content, username=message.author.name,
+                            avatar_url=avatar if avatar else None,
+                            embeds=message.embeds
+                        )
+                    elif message.embeds:
+                        await self.execute_webhook(
+                            hook["id"], hook["token"], wait=True,
+                            username=message.author.name,
+                            avatar_url=avatar if avatar else None,
+                            embeds=message.embeds
+                        )
 
                     if message.attachments:
                         lines = ["__**Attachments**__\n"]
