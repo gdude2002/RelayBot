@@ -590,6 +590,8 @@ class Client(discord.client.Client):
                         if target == message.channel.id:
                             continue
 
+                        channel = self.get_channel(target)
+
                         if not channel:
                             lines.append("• {}".format(target))
                         else:
