@@ -155,6 +155,14 @@ class DataManager:
 
         return linked_channels
 
+    def unlink_all(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        self.unlink_all(origin)
+        self.remove_relays(origin)
+        self.ungroup_channel_entirely(origin)
+
     # Channel management functions
 
     def add_target(self, origin, target):
@@ -343,3 +351,11 @@ class DataManager:
 
     def get_channels_for_group(self, group):
         return self.groups.get(group, default=[])
+
+    def ungroup_channel_entirely(self, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        for group, channels in self.groups.items():
+            if channel in channels:
+                channels.remove(channel)

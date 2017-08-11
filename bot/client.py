@@ -245,9 +245,11 @@ class Client(discord.client.Client):
 
             if hook is None:
                 await self.send_message(
-                    message.channel, "Webhook for channel `{}` is missing - unlinking channel".format(channel_id)
+                    message.channel, "Webhook for channel `{}` is missing - unlinking channel entirely".format(
+                        channel_id
+                    )
                 )
-                self.data_manager.remove_targets(channel_id)
+                self.data_manager.unlink_all(channel_id)
                 self.data_manager.save()
             else:
                 try:
