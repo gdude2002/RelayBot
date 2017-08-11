@@ -138,6 +138,23 @@ class DataManager:
     def get_server_command_chars(self, server) -> str:
         return self.data[server.id]["config"]["control_chars"]
 
+    def get_all_targets(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        linked_channels = set()
+
+        for channel in self.get_targets(origin):
+            linked_channels.add(channel)
+
+        for channel in self.get_relays(origin):
+            linked_channels.add(channel)
+
+        for channel in self.find_grouped_channels(origin):
+            linked_channels.add(channel)
+
+        return linked_channels
+
     # Channel management functions
 
     def add_target(self, origin, target):

@@ -237,7 +237,7 @@ class Client(discord.client.Client):
         return False
 
     async def do_relay(self, message):
-        targets = self.data_manager.get_targets(message.channel)
+        targets = self.data_manager.get_all_targets(message.channel)
         avatar = message.author.avatar_url
 
         for channel_id in targets:
@@ -545,35 +545,60 @@ class Client(discord.client.Client):
             )
 
     async def command_links(self, data, data_string, message):
-        if not self.has_permission(message.author):
-            return log.debug("Permission denied")  # No perms
+        links = self.data_manager.get_targets(message.channel)
+        relays = self.data_manager.get_relays(message.channel)
+        groups = self.data_manager.find_groups(message.channel)
 
-        targets = self.data_manager.get_targets(message.channel)
+        lines = []
 
-        if not targets:
-            return await self.send_message(message.channel, "This channel is not linked to any others.")
+        if links:
+            lines.append("__**Linked channels**__")
 
-        got_lines = []
-        unknown_lines = []
+            for target in links:
+                channel = self.get_channel(target)
 
-        for target in targets:
-            channel = self.get_channel(target)
+                if not channel:
+                    lines.append("• {}".format(target))
+                else:
+                    lines.append("• {}".format(self.get_channel_info(channel)))
+        else:
+            lines.append("__**No linked channels**__")
 
-            if not channel:
-                unknown_lines.append("• {}".format(target))
-            else:
-                got_lines.append("• {}".format(self.get_channel_info(channel)))
+        if relays:
+            lines.append("__**One-way relay channels**__")
 
-        if got_lines:
-            lines = ["__**Linked channels**__"] + got_lines
+            for target in relays:
+                channel = self.get_channel(target)
 
-            for line in line_splitter(lines, 2000):
-                await self.send_message(message.channel, line)
-        if unknown_lines:
-            lines = ["__**Missing linked channels**__"] + unknown_lines
+                if not channel:
+                    lines.append("• {}".format(target))
+                else:
+                    lines.append("• {}".format(self.get_channel_info(channel)))
+        else:
+            lines.append("__**No one-way relay channels**__")
 
-            for line in line_splitter(lines, 2000):
-                await self.send_message(message.channel, line)
+        if groups:
+            lines.append("__**Channel groups**__")
+
+            for group in groups:
+                channels = self.data_manager.get_channels_for_group(group)
+
+                if channels:
+                    lines.append("_**Group: `{}`**_".format(group))
+
+                    for target in channels:
+                        if target == message.channel.id:
+                            continue
+
+                        if not channel:
+                            lines.append("• {}".format(target))
+                        else:
+                            lines.append("• {}".format(self.get_channel_info(channel)))
+                else:
+                    lines.append("_**Group: `{}`**_ - No other channels in group")
+
+        for line in line_splitter(lines, 2000):
+            await self.send_message(message.channel, line)
 
     async def command_unlink(self, data, data_string, message):
         if not self.has_permission(message.author):
