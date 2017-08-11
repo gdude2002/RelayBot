@@ -7,6 +7,8 @@ from discord import Channel
 from ruamel import yaml
 from typing import Dict, Any
 
+from bot.decorators import memoize_first
+
 __author__ = "Gareth Coles"
 
 DATA_REGEX = re.compile(r"[\d]+[\\/]?")
@@ -27,8 +29,9 @@ class DataManager:
 
     data = {}
 
-    # channels = {channel_id: [channel_id]}
-    channels = {}
+    channels = {}  # {channel_id: [channel_id]}
+    groups = {}  # {"group": [channel_id]}
+    relays = {}  # {channel_id: [channel_id]}
 
     def __init__(self):
         if not os.path.exists("data"):
@@ -42,6 +45,18 @@ class DataManager:
         else:
             with open("data/channels.yml", "r") as fh:
                 self.channels = yaml.safe_load(fh)
+
+        if not os.path.exists("data/groups.yml"):
+            self.groups = {}
+        else:
+            with open("data/groups.yml", "r") as fh:
+                self.groups = yaml.safe_load(fh)
+
+        if not os.path.exists("data/relays.yml"):
+            self.relays = {}
+        else:
+            with open("data/relays.yml", "r") as fh:
+                self.relays = yaml.safe_load(fh)
 
         for fn in os.listdir("data/"):
             if os.path.isdir("data/{}".format(fn)):
@@ -57,6 +72,12 @@ class DataManager:
     def save(self):
         with open("data/channels.yml", "w") as fh:
             yaml.safe_dump(self.channels, fh)
+
+        with open("data/groups.yml", "w") as fh:
+            yaml.safe_dump(self.groups, fh)
+
+        with open("data/relays.yml", "w") as fh:
+            yaml.safe_dump(self.relays, fh)
 
         for server_id, data in self.data.items():
             self.save_server(server_id, data)
@@ -137,6 +158,8 @@ class DataManager:
         if origin not in self.channels[target]:
             self.channels[target].append(origin)
 
+        log.info("Channels linked: {} <-> {}".format(origin, target))
+
     def has_target(self, origin, target):
         if isinstance(origin, Channel):
             origin = origin.id
@@ -189,3 +212,117 @@ class DataManager:
                 if not self.channels[channel]:
                     del self.channels[channel]
 
+    # Relay management functions
+
+    def add_relay(self, origin, target):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        if origin not in self.relays:
+            self.relays[origin] = [target]
+        else:
+            self.relays[origin].append(target)
+
+        log.info("Channel relayed: {} -> {}".format(origin, target))
+
+    def has_relay(self, origin, target):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        if origin not in self.relays:
+            return False
+        return target in self.relays[origin]
+
+    def get_relays(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        return self.relays.get(origin)
+
+    def remove_relay(self, origin, target):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        if origin not in self.relays:
+            return
+
+        if target not in self.relays[origin]:
+            return
+
+        self.relays[origin].remove(target)
+
+    def remove_relays(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        if origin in self.relays:
+            del self.relays[origin]
+
+    # Group management functions
+
+    def group_channel(self, group, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        if group not in self.groups:
+            self.groups[group] = [channel]
+        else:
+            self.groups[group].append(channel)
+
+        log.info("Channel grouped: {} -> {}".format(group, channel))
+
+    def ungroup_channel(self, group, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        if group not in self.groups:
+            return
+
+        if channel not in self.groups[group]:
+            return
+
+        self.groups[group].remove(channel)
+
+    def is_grouped_channel(self, group, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        if group not in self.groups:
+            return False
+
+        return channel in self.groups[group]
+
+    @memoize_first
+    def find_groups(self, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        groups = set()
+
+        for group, channels in self.groups.items():
+            if channel in channels:
+                groups.add(group)
+
+        return groups
+
+    @memoize_first
+    def find_grouped_channels(self, channel):
+        if isinstance(channel, Channel):
+            channel = channel.id
+
+        linked_channels = set()
+
+        for group, channels in self.groups.items():
+            if channel in channels:
+                [linked_channels.add(x) for x in channels]
+
+        return linked_channels
+
+    def get_channels_for_group(self, group):
+        return self.groups.get(group, default=[])

@@ -451,6 +451,99 @@ class Client(discord.client.Client):
                 "Permission denied - you must have `Manage Server` on the server belonging to both channels"
             )
 
+    async def command_relay(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 1:
+            return await self.send_message(message.channel, "Usage: `relay <channel ID> [channel ID]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            left = message.channel
+            right = data[0]
+        else:
+            left, right = data[0], data[1]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    message.channel, "Invalid channel ID: `{}`".format(left)
+                )
+
+        try:
+            int(right)
+            right = self.get_channel(right)
+        except Exception:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(right)
+            )
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(left.id)
+            )
+        elif right_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(right.id)
+            )
+
+        if left.id == right.id:
+            return await self.send_message(message.channel, "You may not relay a channel to itself!")
+
+        if self.data_manager.has_relay(left, right):
+            return await self.send_message(message.channel, "These channels are already relayed in that direction!")
+
+        if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
+            try:
+                h = await self.ensure_relay_hook(right)
+
+                if not h:
+                    return await self.send_message(
+                        message.channel,
+                        "Unable to set up webhook for {}: I don't have the Manage Webhooks "
+                        "permission.".format(self.get_channel_info(right))
+                    )
+
+                self.webhooks[right.id] = h
+            except Exception as e:
+                return await self.send_message(
+                    message.channel,
+                    "Unable to set up webhook for {}: `{}`".format(self.get_channel_info(right), e)
+                )
+            self.data_manager.add_relay(left, right)
+            self.data_manager.save()
+
+            await self.send_message(
+                message.channel,
+                "Channels set to relay successfully."
+            )
+
+            if left.id != message.channel.id:
+                await self.send_message(
+                    left, "This channel has been set to relay to {} by {}.".format(
+                        self.get_channel_info(right), message.author.mention
+                    )
+                )
+
+            if right.id != message.channel.id:
+                await self.send_message(
+                    right, "This channel has been set to relay to {} by {}.".format(
+                        self.get_channel_info(left), message.author.mention
+                    )
+                )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to both channels"
+            )
+
     async def command_links(self, data, data_string, message):
         if not self.has_permission(message.author):
             return log.debug("Permission denied")  # No perms
