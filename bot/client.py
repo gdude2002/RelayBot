@@ -624,7 +624,7 @@ class Client(discord.client.Client):
         lines = []
 
         if links:
-            lines.append("**Two-way relay channels**")
+            lines.append("**Two-way linked channels**")
 
             for target in links:
                 channel = self.get_channel(target)
@@ -634,7 +634,7 @@ class Client(discord.client.Client):
                 else:
                     lines.append("• {}".format(self.get_channel_info(channel)))
         else:
-            lines.append("**No two-way relay channels**")
+            lines.append("**No two-way linked channels**")
         lines.append("")
 
         if relays:
