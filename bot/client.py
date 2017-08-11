@@ -778,12 +778,15 @@ class Client(discord.client.Client):
                 "Permission denied - you must have `Manage Server` on the server belonging to that channel."
             )
 
-        targets = self.data_manager.get_targets(channel).copy()
+        targets = self.data_manager.get_all_targets(channel).copy()
+
+        if message.channel.id in targets:
+            targets.remove(message.channel.id)
 
         if not targets:
             return await self.send_message("This channel is not linked to any others.")
 
-        self.data_manager.remove_targets(channel)
+        self.data_manager.unlink_all(channel)
         self.data_manager.save()
 
         await self.send_message("Notifying linked channels of removal...")
