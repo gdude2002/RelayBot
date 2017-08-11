@@ -266,7 +266,10 @@ class DataManager:
         if isinstance(origin, Channel):
             origin = origin.id
 
-        return self.relays.get(origin)
+        if origin in self.relays:
+            return self.relays[origin]
+
+        return []
 
     def remove_relay(self, origin, target):
         if isinstance(origin, Channel):

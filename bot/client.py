@@ -554,7 +554,7 @@ class Client(discord.client.Client):
         lines = []
 
         if links:
-            lines.append("__**Linked channels**__")
+            lines.append("**Two-way relay channels**")
 
             for target in links:
                 channel = self.get_channel(target)
@@ -564,10 +564,11 @@ class Client(discord.client.Client):
                 else:
                     lines.append("• {}".format(self.get_channel_info(channel)))
         else:
-            lines.append("__**No linked channels**__")
+            lines.append("**No two-way relay channels**")
+        lines.append("")
 
         if relays:
-            lines.append("__**One-way relay channels**__")
+            lines.append("**One-way relay channels**")
 
             for target in relays:
                 channel = self.get_channel(target)
@@ -577,16 +578,17 @@ class Client(discord.client.Client):
                 else:
                     lines.append("• {}".format(self.get_channel_info(channel)))
         else:
-            lines.append("__**No one-way relay channels**__")
+            lines.append("**No one-way relay channels**")
+        lines.append("")
 
         if groups:
-            lines.append("__**Channel groups**__")
+            lines.append("**Channel groups**")
 
             for group in groups:
                 channels = self.data_manager.get_channels_for_group(group)
 
                 if channels:
-                    lines.append("_**Group: `{}`**_".format(group))
+                    lines.append("_Group: `{}`_".format(group))
 
                     for target in channels:
                         if target == message.channel.id:
@@ -599,7 +601,9 @@ class Client(discord.client.Client):
                         else:
                             lines.append("• {}".format(self.get_channel_info(channel)))
                 else:
-                    lines.append("_**Group: `{}`**_ - No other channels in group")
+                    lines.append("_Group: `{}`_ - No other channels in group")
+        else:
+            lines.append("**No grouped channels**")
 
         for line in line_splitter(lines, 2000):
             await self.send_message(message.channel, line)
