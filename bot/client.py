@@ -546,6 +546,76 @@ class Client(discord.client.Client):
                 "Permission denied - you must have `Manage Server` on the server belonging to both channels"
             )
 
+    async def command_unrelay(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 1:
+            return await self.send_message(message.channel, "Usage: `unrelay <channel ID> [channel ID]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            left = message.channel
+            right = data[0]
+        else:
+            left, right = data[0], data[1]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    "Invalid channel ID: `{}`".format(left)
+                )
+
+        try:
+            int(right)
+            right = self.get_channel(right)
+        except Exception:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right)
+            )
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(left.id)
+            )
+        elif right_member is None:
+            return await self.send_message(
+                "Invalid channel ID: `{}`".format(right.id)
+            )
+
+        if left_member.server_permissions.manage_server or right_member.server_permissions.manage_server:
+            if self.data_manager.has_relay(left, right):
+                self.data_manager.remove_relay(left, right)
+                self.data_manager.save()
+
+                await self.send_message(
+                    message.channel, "Channel relay removed successfully."
+                )
+
+                if left.id != message.channel.id:
+                    await self.send_message(
+                        left,
+                        "This channel is no longer relayed to {} - action by {}.".format(
+                            self.get_channel_info(right), message.author.mention
+                        )
+                    )
+            else:
+                return await self.send_message(
+                    message.channel, "These channels are not relayed."
+                )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to at least one of those "
+                "channels."
+            )
+
     async def command_links(self, data, data_string, message):
         links = self.data_manager.get_targets(message.channel)
         relays = self.data_manager.get_relays(message.channel)
