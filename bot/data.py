@@ -159,7 +159,7 @@ class DataManager:
         if isinstance(origin, Channel):
             origin = origin.id
 
-        self.unlink_all(origin)
+        self.remove_targets(origin)
         self.remove_relays(origin)
         self.ungroup_channel_entirely(origin)
 
