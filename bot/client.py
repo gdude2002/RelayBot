@@ -244,6 +244,9 @@ class Client(discord.client.Client):
         avatar = message.author.avatar_url
 
         for channel_id in targets:
+            if channel_id == message.channel.id:
+                continue
+
             hook = self.webhooks.get(channel_id, None)
 
             if hook is None:
@@ -707,6 +710,9 @@ class Client(discord.client.Client):
             )
 
         for grouped_channel in self.data_manager.get_channels_for_group(group):
+            if grouped_channel == message.channel.id:
+                continue
+
             c = self.get_channel(grouped_channel)
 
             if not c:
@@ -774,6 +780,9 @@ class Client(discord.client.Client):
             )
 
         for grouped_channel in self.data_manager.get_channels_for_group(group):
+            if grouped_channel == message.channel.id:
+                continue
+
             c = self.get_channel(grouped_channel)
 
             if not c:
