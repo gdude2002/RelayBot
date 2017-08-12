@@ -353,7 +353,7 @@ class DataManager:
         return linked_channels
 
     def get_channels_for_group(self, group):
-        return self.groups.get(group, default=[])
+        return self.groups.get(group, [])
 
     def ungroup_channel_entirely(self, channel):
         if isinstance(channel, Channel):
