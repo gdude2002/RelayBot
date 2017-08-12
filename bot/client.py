@@ -461,7 +461,7 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            return await self.send_message(message.channel, "Usage: `relay <channel ID> [channel ID]`")
+            return await self.send_message(message.channel, "Usage: `relay <origin[|target]> [target]`")
 
         await self.send_typing(message.channel)
 
@@ -554,7 +554,7 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            return await self.send_message(message.channel, "Usage: `unrelay <channel ID> [channel ID]`")
+            return await self.send_message(message.channel, "Usage: `unrelay <origin[|target]> [target]`")
 
         await self.send_typing(message.channel)
 
