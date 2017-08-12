@@ -619,6 +619,173 @@ class Client(discord.client.Client):
                 "channels."
             )
 
+    async def command_group(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 1:
+            return await self.send_message(message.channel, "Usage: `group <group> [channel ID]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            channel = message.channel
+            group = data[0]
+        else:
+            group, channel = data[0], data[1]
+
+            try:
+                int(channel)
+                channel = self.get_channel(channel)
+            except Exception:
+                return await self.send_message(
+                    message.channel, "Invalid channel ID: `{}`".format(channel)
+                )
+
+        left_member = channel.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(channel.id)
+            )
+
+        if not left_member.server_permissions.manage_server:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to every channel in "
+                "the group."
+            )
+
+        for grouped_channel in self.data_manager.get_channels_for_group(group):
+            c = self.get_channel(grouped_channel)
+
+            if not c:
+                continue
+
+            c_member = c.server.get_member(message.author.id)
+
+            if c_member is None or not c_member.server_permissions.manage_server:
+                return await self.send_message(
+                    message.channel,
+                    "Permission denied - you must have `Manage Server` on the server belonging to every channel in "
+                    "the group."
+                )
+
+        if self.data_manager.is_grouped_channel(group, channel):
+            return await self.send_message(message.channel, "This channel is already in the `{}` group.".format(group))
+
+        try:
+            h = await self.ensure_relay_hook(channel)
+
+            if not h:
+                return await self.send_message(
+                    message.channel,
+                    "Unable to set up webhook for {}: I don't have the Manage Webhooks "
+                    "permission.".format(self.get_channel_info(channel))
+                )
+
+            self.webhooks[channel.id] = h
+        except Exception as e:
+            return await self.send_message(
+                message.channel,
+                "Unable to set up webhook for {}: `{}`".format(self.get_channel_info(channel), e)
+            )
+
+        self.data_manager.group_channel(group, channel)
+        self.data_manager.save()
+
+        await self.send_message(
+            message.channel,
+            "Channel added to the `{}` group successfully.".format(group)
+        )
+
+        if channel.id != message.channel.id:
+            await self.send_message(
+                channel, "This channel has been added to the relay group `{}` by {}.".format(
+                    group, message.author.mention
+                )
+            )
+
+        for grouped_channel in self.data_manager.get_channels_for_group(group):
+            c = self.get_channel(grouped_channel)
+
+            if not c:
+                continue
+
+            await self.send_message(
+                c,
+                "This channel is now being relayed to {} via the relay group `{}` at the request of {}".format(
+                    self.get_channel_info(channel), group, message.author.mention
+                )
+            )
+
+    async def command_ungroup(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 1:
+            return await self.send_message(message.channel, "Usage: `ungroup <group> [channel ID]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            channel = message.channel
+            group = data[0]
+        else:
+            group, channel = data[0], data[1]
+
+            try:
+                int(channel)
+                channel = self.get_channel(channel)
+            except Exception:
+                return await self.send_message(
+                    message.channel, "Invalid channel ID: `{}`".format(channel)
+                )
+
+        left_member = channel.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(channel.id)
+            )
+
+        if not left_member.server_permissions.manage_server:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the channel you wish to ungroup."
+            )
+
+        if not self.data_manager.is_grouped_channel(group, channel):
+            return await self.send_message(message.channel, "This channel is not in the `{}` group.".format(group))
+
+        self.data_manager.ungroup_channel(group, channel)
+        self.data_manager.save()
+
+        await self.send_message(
+            message.channel,
+            "Channel removed from the `{}` group successfully.".format(group)
+        )
+
+        if channel.id != message.channel.id:
+            await self.send_message(
+                channel, "This channel has been removed from the relay group `{}` by {}.".format(
+                    group, message.author.mention
+                )
+            )
+
+        for grouped_channel in self.data_manager.get_channels_for_group(group):
+            c = self.get_channel(grouped_channel)
+
+            if not c:
+                continue
+
+            await self.send_message(
+                c,
+                "This channel is no longer being relayed to {} via the relay group `{}` at the request of {}.".format(
+                    self.get_channel_info(channel), group, message.author.mention
+                )
+            )
+
     async def command_links(self, data, data_string, message):
         links = self.data_manager.get_targets(message.channel)
         relays = self.data_manager.get_relays(message.channel)
