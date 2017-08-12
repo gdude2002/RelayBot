@@ -747,6 +747,9 @@ class Client(discord.client.Client):
         self.data_manager.group_channel(group, channel)
         self.data_manager.save()
 
+        self.data_manager.find_grouped_channels.clear(channel.id)
+        self.data_manager.find_groups.clear(channel.id)
+
         await self.send_message(
             message.channel,
             "Channel added to the `{}` group successfully.".format(group)
@@ -762,6 +765,9 @@ class Client(discord.client.Client):
         for grouped_channel in self.data_manager.get_channels_for_group(group):
             if grouped_channel == message.channel.id:
                 continue
+
+            self.data_manager.find_grouped_channels.clear(grouped_channel)
+            self.data_manager.find_groups.clear(grouped_channel)
 
             c = self.get_channel(grouped_channel)
 
@@ -817,6 +823,9 @@ class Client(discord.client.Client):
         self.data_manager.ungroup_channel(group, channel)
         self.data_manager.save()
 
+        self.data_manager.find_grouped_channels.clear(channel.id)
+        self.data_manager.find_groups.clear(channel.id)
+
         await self.send_message(
             message.channel,
             "Channel removed from the `{}` group successfully.".format(group)
@@ -832,6 +841,9 @@ class Client(discord.client.Client):
         for grouped_channel in self.data_manager.get_channels_for_group(group):
             if grouped_channel == message.channel.id:
                 continue
+
+            self.data_manager.find_grouped_channels.clear(grouped_channel)
+            self.data_manager.find_groups.clear(grouped_channel)
 
             c = self.get_channel(grouped_channel)
 

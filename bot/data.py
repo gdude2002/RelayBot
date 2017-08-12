@@ -362,3 +362,6 @@ class DataManager:
         for group, channels in self.groups.items():
             if channel in channels:
                 channels.remove(channel)
+
+        self.find_grouped_channels.clear(channel)
+        self.find_groups.clear(channel)
