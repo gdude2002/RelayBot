@@ -264,14 +264,14 @@ class Client(discord.client.Client):
                     if message.content:
                         await self.execute_webhook(
                             hook["id"], hook["token"], wait=True,
-                            content=message.content, username=message.author.name,
+                            content=message.content, username=message.author.display_name,
                             avatar_url=avatar if avatar else None,
                             embeds=message.embeds
                         )
                     elif message.embeds:
                         await self.execute_webhook(
                             hook["id"], hook["token"], wait=True,
-                            username=message.author.name,
+                            username=message.author.display_name,
                             avatar_url=avatar if avatar else None,
                             embeds=message.embeds
                         )
@@ -285,7 +285,7 @@ class Client(discord.client.Client):
                         for split_line in line_splitter(lines, 2000):
                             await self.execute_webhook(
                                 hook["id"], hook["token"], wait=True,
-                                content=split_line, username=message.author.name,
+                                content=split_line, username=message.author.display_name,
                                 avatar_url=avatar if avatar else None
                             )
                 except Exception as e:
