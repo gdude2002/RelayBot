@@ -626,6 +626,9 @@ class Client(discord.client.Client):
 
         lines = []
 
+        if not links and not relays and not groups:
+            return await self.send_message(message.channel, "This channel is not linked to any others in any way.")
+
         if links:
             lines.append("**Two-way linked channels**")
 
