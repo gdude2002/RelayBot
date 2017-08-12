@@ -224,7 +224,10 @@ class Client(discord.client.Client):
             log.debug("Data: {}".format(repr(data)))
 
             if hasattr(self, "command_{}".format(command.replace("-", "_"))):
-                await getattr(self, "command_{}".format(command.replace("-", "_")))(data, args_string, message)
+                try:
+                    await getattr(self, "command_{}".format(command.replace("-", "_")))(data, args_string, message)
+                except Exception:
+                    log.exception("Error running command: {}".format(command))
         else:  # We should relay this
             await self.do_relay(message)
 
@@ -761,7 +764,7 @@ class Client(discord.client.Client):
             return log.debug("Permission denied")  # No perms
 
         if len(data) < 1:
-            return await self.send_message("Usage: `unlink-all <channel ID>`")
+            return await self.send_message(message.channel, "Usage: `unlink-all <channel ID>`")
 
         await self.send_typing(message.channel)
 
@@ -771,10 +774,11 @@ class Client(discord.client.Client):
             int(data[0])
             channel = self.get_channel(data[0])
         except Exception:
-            return await self.send_message("Invalid channel ID: {}".format(channel))
+            return await self.send_message(message.channel, "Invalid channel ID: {}".format(channel))
 
         if not channel.server.get_member(message.author.id).server_permissions.manage_server:
             return await self.send_message(
+                message.channel,
                 "Permission denied - you must have `Manage Server` on the server belonging to that channel."
             )
 
@@ -784,12 +788,12 @@ class Client(discord.client.Client):
             targets.remove(message.channel.id)
 
         if not targets:
-            return await self.send_message("This channel is not linked to any others.")
+            return await self.send_message(message.channel, "This channel is not linked to any others.")
 
         self.data_manager.unlink_all(channel)
         self.data_manager.save()
 
-        await self.send_message("Notifying linked channels of removal...")
+        await self.send_message(message.channel, "Notifying linked channels of removal...")
         await self.send_typing(message.channel)
 
         for target in targets:
@@ -806,7 +810,7 @@ class Client(discord.client.Client):
                 )
             )
 
-        await self.send_message("Channels unlinked successfully.")
+        await self.send_message(message.channel, "Channels unlinked successfully.")
 
     # endregion
 
