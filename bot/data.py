@@ -7,8 +7,6 @@ from discord import Channel
 from ruamel import yaml
 from typing import Dict, Any
 
-from bot.decorators import memoize_first
-
 __author__ = "Gareth Coles"
 
 DATA_REGEX = re.compile(r"[\d]+[\\/]?")
@@ -326,7 +324,6 @@ class DataManager:
 
         return channel in self.groups[group]
 
-    @memoize_first
     def find_groups(self, channel):
         if isinstance(channel, Channel):
             channel = channel.id
@@ -339,7 +336,6 @@ class DataManager:
 
         return groups
 
-    @memoize_first
     def find_grouped_channels(self, channel):
         if isinstance(channel, Channel):
             channel = channel.id
@@ -362,6 +358,3 @@ class DataManager:
         for group, channels in self.groups.items():
             if channel in channels:
                 channels.remove(channel)
-
-        self.find_grouped_channels.clear(channel)
-        self.find_groups.clear(channel)
