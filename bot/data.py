@@ -30,10 +30,13 @@ class DataManager:
     channels = {}  # {channel_id: [channel_id]}
     groups = {}  # {"group": [channel_id]}
     relays = {}  # {channel_id: [channel_id]}
+    prefixes = {}  # {channel_id: {"prefix": channel_id}}
 
     def __init__(self):
         if not os.path.exists("data"):
             os.mkdir("data")
+
+    # region Data management
 
     def load(self):
         self.data = {}
@@ -56,6 +59,12 @@ class DataManager:
             with open("data/relays.yml", "r") as fh:
                 self.relays = yaml.safe_load(fh)
 
+        if not os.path.exists("data/prefixes.yml"):
+            self.prefixes = {}
+        else:
+            with open("data/prefixes.yml", "r") as fh:
+                self.prefixes = yaml.safe_load(fh)
+
         for fn in os.listdir("data/"):
             if os.path.isdir("data/{}".format(fn)):
                 if DATA_REGEX.match(fn):
@@ -76,6 +85,9 @@ class DataManager:
 
         with open("data/relays.yml", "w") as fh:
             yaml.safe_dump(self.relays, fh)
+
+        with open("data/prefixes.yml", "w") as fh:
+            yaml.safe_dump(self.prefixes, fh)
 
         for server_id, data in self.data.items():
             self.save_server(server_id, data)
@@ -125,7 +137,9 @@ class DataManager:
 
         return True
 
-    # Convenience functions
+    # endregion
+
+    # region Convenience functions
 
     def get_config(self, server) -> Dict[str, Any]:
         return self.data[server.id]["config"]
@@ -160,8 +174,11 @@ class DataManager:
         self.remove_targets(origin)
         self.remove_relays(origin)
         self.ungroup_channel_entirely(origin)
+        self.remove_all_prefixes(origin)
 
-    # Channel management functions
+    # endregion
+
+    # region Two-way relaying
 
     def add_target(self, origin, target):
         if isinstance(origin, Channel):
@@ -235,7 +252,9 @@ class DataManager:
                 if not self.channels[channel]:
                     del self.channels[channel]
 
-    # Relay management functions
+    # endregion
+
+    # region One-way relaying
 
     def add_relay(self, origin, target):
         if isinstance(origin, Channel):
@@ -290,7 +309,9 @@ class DataManager:
         if origin in self.relays:
             del self.relays[origin]
 
-    # Group management functions
+    # endregion
+
+    # region Groups
 
     def group_channel(self, group, channel):
         if isinstance(channel, Channel):
@@ -358,3 +379,106 @@ class DataManager:
         for group, channels in self.groups.items():
             if channel in channels:
                 channels.remove(channel)
+
+    # endregion
+
+    # region Prefix-based relaying
+
+    def set_prefix(self, origin, target, prefix):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        prefix = prefix.lower()
+
+        if origin not in self.prefixes:
+            self.prefixes[origin] = {
+                prefix: target
+            }
+            return
+
+        self.prefixes[origin][prefix] = target
+
+    def remove_prefix(self, origin, prefix):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        prefix = prefix.lower()
+
+        if origin not in self.prefixes:
+            return
+
+        if prefix in self.prefixes[origin]:
+            del self.prefixes[origin][prefix]
+
+    def remove_prefix_by_channel(self, origin, target):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        if origin not in self.prefixes:
+            return
+
+        for prefix, channel in self.prefixes[origin].items():
+            if channel == target:
+                del self.prefixes[origin][prefix]
+                return
+
+    def remove_all_prefixes(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        if origin not in self.prefixes:
+            return
+
+        self.prefixes[origin].clear()
+
+    def has_prefix(self, origin, prefix):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        prefix = prefix.lower()
+
+        if origin not in self.prefixes:
+            return False
+
+        return prefix in self.prefixes[origin]
+
+    def has_specific_prefix(self, origin, target, prefix):
+        if isinstance(origin, Channel):
+            origin = origin.id
+        if isinstance(target, Channel):
+            target = target.id
+
+        prefix = prefix.lower()
+
+        if origin not in self.prefixes:
+            return False
+
+        return self.prefixes[origin].get(prefix) == target
+
+    def get_prefixed_target(self, origin, prefix):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        prefix = prefix.lower()
+
+        if origin not in self.prefixes:
+            return None
+
+        return self.prefixes[origin].get(prefix)
+
+    def get_prefixes(self, origin):
+        if isinstance(origin, Channel):
+            origin = origin.id
+
+        if origin not in self.prefixes:
+            return {}
+
+        return self.prefixes[origin]
+
+    # endregion
+
+    pass  # Makes the last region collapsible

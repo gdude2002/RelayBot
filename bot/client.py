@@ -243,6 +243,19 @@ class Client(discord.client.Client):
 
     async def do_relay(self, message):
         targets = self.data_manager.get_all_targets(message.channel)
+        prefixed = self.data_manager.get_prefixes(message.channel)
+
+        content = message.content
+        lower_content = content.lower()
+
+        for prefix, target in prefixed.items():
+            if lower_content.startswith(prefix):
+                targets.add(target)
+                content = content[len(prefix):]
+                break
+
+        del lower_content
+
         avatar = message.author.avatar_url
 
         for channel_id in targets:
@@ -250,6 +263,14 @@ class Client(discord.client.Client):
                 continue
 
             hook = self.webhooks.get(channel_id, None)
+
+            if hook is None:
+                h = await self.ensure_relay_hook(channel_id)
+
+                if h:
+                    self.webhooks[channel_id] = h
+
+                hook = self.webhooks.get(channel_id, None)
 
             if hook is None:
                 await self.send_message(
@@ -261,10 +282,10 @@ class Client(discord.client.Client):
                 self.data_manager.save()
             else:
                 try:
-                    if message.content:
+                    if content:
                         await self.execute_webhook(
                             hook["id"], hook["token"], wait=True,
-                            content=message.content, username=message.author.display_name,
+                            content=content, username=message.author.display_name,
                             avatar_url=avatar if avatar else None,
                             embeds=message.embeds
                         )
@@ -622,6 +643,7 @@ class Client(discord.client.Client):
                 left = self.get_channel(left)
             except Exception:
                 return await self.send_message(
+                    message.channel,
                     "Invalid channel ID: `{}`".format(left)
                 )
 
@@ -630,6 +652,7 @@ class Client(discord.client.Client):
             right = self.get_channel(right)
         except Exception:
             return await self.send_message(
+                message.channel,
                 "Invalid channel ID: `{}`".format(right)
             )
 
@@ -638,10 +661,12 @@ class Client(discord.client.Client):
 
         if left_member is None:
             return await self.send_message(
+                message.channel,
                 "Invalid channel ID: `{}`".format(left.id)
             )
         elif right_member is None:
             return await self.send_message(
+                message.channel,
                 "Invalid channel ID: `{}`".format(right.id)
             )
 
@@ -845,10 +870,172 @@ class Client(discord.client.Client):
                 )
             )
 
+    async def command_prefix(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 2:
+            return await self.send_message(message.channel, "Usage: `prefix <origin[|target]> <prefix> [target]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 3:
+            left = message.channel
+            right, prefix = data[0], data[1]
+        else:
+            left, prefix, right = data[0], data[1], data[2]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    message.channel, "Invalid channel ID: `{}`".format(left)
+                )
+
+        try:
+            int(right)
+            right = self.get_channel(right)
+        except Exception:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(right)
+            )
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(left.id)
+            )
+        elif right_member is None:
+            return await self.send_message(
+                message.channel, "Invalid channel ID: `{}`".format(right.id)
+            )
+
+        if left.id == right.id:
+            return await self.send_message(message.channel, "You may not relay a channel to itself!")
+
+        if self.data_manager.has_specific_prefix(left, right, prefix):
+            return await self.send_message(message.channel, "These channels are already relayed using that prefix!")
+
+        if left_member.server_permissions.manage_server and right_member.server_permissions.manage_server:
+            try:
+                h = await self.ensure_relay_hook(right)
+
+                if not h:
+                    return await self.send_message(
+                        message.channel,
+                        "Unable to set up webhook for {}: I don't have the Manage Webhooks "
+                        "permission.".format(self.get_channel_info(right))
+                    )
+
+                self.webhooks[right.id] = h
+            except Exception as e:
+                return await self.send_message(
+                    message.channel,
+                    "Unable to set up webhook for {}: `{}`".format(self.get_channel_info(right), e)
+                )
+            self.data_manager.set_prefix(left, right, prefix)
+            self.data_manager.save()
+
+            await self.send_message(
+                message.channel,
+                "Channels set to relay using a prefix successfully."
+            )
+
+            if left.id != message.channel.id:
+                await self.send_message(
+                    left, "This channel has been set to relay to {} by {} using the prefix `{}`.".format(
+                        self.get_channel_info(right), message.author.mention, prefix
+                    )
+                )
+
+            if right.id != message.channel.id:
+                await self.send_message(
+                    right, "This channel has been set to be relayed to from {} by {} using the prefix `{}`.".format(
+                        self.get_channel_info(left), message.author.mention, prefix
+                    )
+                )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to both channels"
+            )
+
+    async def command_unprefix(self, data, data_string, message):
+        if not self.has_permission(message.author):
+            return log.debug("Permission denied")  # No perms
+
+        if len(data) < 1:
+            return await self.send_message(message.channel, "Usage: `unrelay <origin[|prefix]> [prefix]`")
+
+        await self.send_typing(message.channel)
+
+        if len(data) < 2:
+            left = message.channel
+            prefix = data[0]
+        else:
+            left, prefix = data[0], data[1]
+
+            try:
+                int(left)
+                left = self.get_channel(left)
+            except Exception:
+                return await self.send_message(
+                    message.channel,
+                    "Invalid channel ID: `{}`".format(left)
+                )
+
+        if not self.data_manager.has_prefix(left, prefix):
+            return await self.send_message(
+                message.channel,
+                "No channel is linked using prefix `{}`".format(prefix)
+            )
+
+        right = self.get_channel(self.data_manager.get_prefixed_target(left, prefix))
+
+        left_member = left.server.get_member(message.author.id)
+        right_member = right.server.get_member(message.author.id)
+
+        if left_member is None and right_member is None:
+            return await self.send_message(
+                message.channel,
+                "You must be on the server belonging to at least one of the channels."
+            )
+
+        if left_member.server_permissions.manage_server or right_member.server_permissions.manage_server:
+            if self.data_manager.has_specific_prefix(left, right, prefix):
+                self.data_manager.remove_prefix(left, prefix)
+                self.data_manager.save()
+
+                await self.send_message(
+                    message.channel, "Prefixed relay removed successfully."
+                )
+
+                if left.id != message.channel.id:
+                    await self.send_message(
+                        left,
+                        "This channel is no longer relayed to {} by prefix - action by {}.".format(
+                            self.get_channel_info(right), message.author.mention
+                        )
+                    )
+            else:
+                return await self.send_message(
+                    message.channel, "These channels are not relayed by prefix."
+                )
+        else:
+            return await self.send_message(
+                message.channel,
+                "Permission denied - you must have `Manage Server` on the server belonging to at least one of those "
+                "channels."
+            )
+
     async def command_links(self, data, data_string, message):
         links = self.data_manager.get_targets(message.channel)
         relays = self.data_manager.get_relays(message.channel)
         groups = self.data_manager.find_groups(message.channel)
+        prefixes = self.data_manager.get_prefixes(message.channel)
 
         lines = []
 
@@ -906,6 +1093,19 @@ class Client(discord.client.Client):
                     lines.append("_Group: `{}`_ - No other channels in group")
         else:
             lines.append("**No grouped channels**")
+
+        if prefixes:
+            lines.append("**Prefix links**")
+
+            for prefix, target in prefixes.items():
+                channel = self.get_channel(target)
+
+                if not channel:
+                    lines.append("• `{}` -> {}".format(prefix, target))
+                else:
+                    lines.append("• `{}` -> {}".format(prefix, self.get_channel_info(channel)))
+        else:
+            lines.append("**No channels linked by prefix**")
 
         for line in line_splitter(lines, 2000):
             await self.send_message(message.channel, line)
