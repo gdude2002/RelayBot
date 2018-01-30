@@ -1,3 +1,10 @@
+RelayBot is becoming Smithy!
+===========================
+
+RelayBot in its current state will no longer be developed. Instead, please head on over to the [Smithy project](https://github.com/gdude2002/Smithy), which will contain all of the features you know and love from RelayBot!
+
+You can sill reach us for support on the [Smithy Discord server](https://discord.gg/ZUVSbah) for individual support, or a chat.
+
 RelayBot
 ========
 
